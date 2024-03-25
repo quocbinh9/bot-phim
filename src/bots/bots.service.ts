@@ -8,6 +8,7 @@ import * as moment from 'moment';
 import * as _ from 'lodash';
 import { Message } from './entities/Message';
 import { NguoncService } from './nguonc.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class BotsService implements OnModuleInit {
@@ -189,10 +190,9 @@ export class BotsService implements OnModuleInit {
       }
 
       const { results } = await this.serviceMovieService.discoverMovie(page, query?.query.trim())
-
       this.bot.answerInlineQuery(query.id, [...results.slice(0, 9)].map(item => {
         return {
-          id: item.slug,
+          id: randomUUID(),
           type: 'article',
           title: `${item.title} (${item.original_title})`,
           input_message_content: {
@@ -201,7 +201,7 @@ export class BotsService implements OnModuleInit {
           thumb_url: item.thumb_url,
           thumb_height: 100,
           thumb_width: 100,
-          description: `${item.countries.map(el => el.name).join(', ')} | Trạng thái:${item.status} | ${item.release_year} \n${item.genres.map(el => el.name).join(', ')}`,
+          description: `${item.countries.map(el => el.name).join(', ')} | Trạng thái: ${item.status} | ${item.release_year} \n${item.genres.map(el => el.name).join(', ')}`,
         }
       }), {
         cache_time: 0,
