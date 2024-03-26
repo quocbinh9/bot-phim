@@ -50,6 +50,13 @@ export class Message {
   })
   reply_markup: string;
 
+
+  @Column({
+    type: 'json',
+    nullable: true
+  })
+  data: Record<string, any>;
+
   @CreateDateColumn({
     type: "timestamp",
     default: () => "CURRENT_TIMESTAMP(6)",

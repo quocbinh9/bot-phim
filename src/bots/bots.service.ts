@@ -190,6 +190,21 @@ export class BotsService implements OnModuleInit {
       }
 
       const { results } = await this.serviceMovieService.discoverMovie(page, query?.query.trim())
+
+      if (results.length == 0) {
+        return this.bot.answerInlineQuery(query.id, [
+          {
+            id: randomUUID(),
+            type: 'article',
+            title: 'Không tìm thấy kết quả 😓',
+            input_message_content: {
+              message_text: '/search'
+            },
+            description: 'Nếu nó không hoạt động, hãy đọc hướng dẫn'
+          }
+        ])
+      }
+
       this.bot.answerInlineQuery(query.id, [...results.slice(0, 9)].map(item => {
         return {
           id: randomUUID(),
@@ -211,9 +226,9 @@ export class BotsService implements OnModuleInit {
 
     this.bot.onText(/\/watch (.+)/, async (msg, match) => {
       const resp = match[1]; // the captured "whatever"
-      const detailMovie = await this.serviceMovieService.detailMovie(resp)
       this.bot.deleteMessage(msg.chat.id, msg.message_id);
 
+      const detailMovie = await this.serviceMovieService.detailMovie(resp)
       if (!detailMovie) return
 
       const labelCategory = _.values(detailMovie.category).reduce((result, item) => {
@@ -221,56 +236,213 @@ export class BotsService implements OnModuleInit {
         return `${result}\n${label}`
       }, '')
       const caption = `${detailMovie.name} (${detailMovie.original_name})\n\n${detailMovie.description ? detailMovie.description.replace(/<[^>]*>?/gm, '') : '...'}\n\n---------------------\n${labelCategory}\n${detailMovie.language} | ${detailMovie.quality} | ${detailMovie.time}\n\nvia ${this.userName}`
-      const serverName = _.get(detailMovie, 'episodes.0.server_name')
       const messageReps = await this.bot.sendPhoto(msg.chat.id, detailMovie.thumb_url, {
         caption,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '↗️ Xem ngay',
-                web_app: {
-                  url: 'https://revenkroz.github.io/telegram-web-app-bot-example/index.html'
-                }
-              },
-            ],
-            [
-              {
-                text: '🔢 Tập phim',
-                callback_data: 'select_episodes'
-              },
-              {
-                text: `🔄 Server (${serverName})`,
-                callback_data: 'select_server'
-              }
-            ],
-            [
-              {
-                text: '🔔 Thông báo',
-                callback_data: `select_notification_${detailMovie.id}`
-              },
-            ],
-            [
-              {
-                text: '⭐ Thêm vào yêu thích',
-                switch_inline_query_current_chat: '#favourite'
-              }
-            ],
-            [
-              {
-                text: '🕐 Lịch sử',
-                switch_inline_query_current_chat: '#history'
-              },
-              {
-                text: '🔍 Tìm kiếm',
-                switch_inline_query_current_chat: ''
-              }
-            ]
-          ]
-        }
+        reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie)
       })
       this.storeMessage(messageReps, true)
     });
+
+    this.bot.on('callback_query', async (query) => {
+      if (query.data.startsWith('select_server_')) {
+        const resp = query.data.replace('select_server_', '').trim()
+        console.log({ resp });
+        const message = await this.messageRepository.findOne({
+          where: {
+            messageId: query.message.message_id,
+            chatId: query.message.chat.id
+          }
+        })
+        await this.updateServerSelect(resp, query.message.chat.id, query.message.message_id, message)
+      }
+    })
+
+    this.bot.on('callback_query', async (query) => {
+      if (query.data.startsWith('back_to_')) {
+        const resp = query.data.replace('back_to_', '').trim()
+
+        const detailMovie = await this.serviceMovieService.detailMovie(resp)
+        if (!detailMovie) return
+
+        this.bot.editMessageReplyMarkup(await this.detailMovieReplyMarkup(resp, detailMovie, query.message.chat.id, query.message.message_id), {
+          message_id: query.message.message_id,
+          chat_id: query.message.chat.id
+        })
+      }
+    })
+
+    this.bot.on('callback_query', async (query) => {
+      if (query.data.startsWith('update_server_name_')) {
+        const resp = query.data.replace('update_server_name_', '').trim().split('_')
+        const message = await this.messageRepository.findOne({
+          where: {
+            messageId: query.message.message_id,
+            chatId: query.message.chat.id
+          }
+        })
+
+        message.data = {
+          server_name: resp[1]
+        }
+
+        const messageUpdate = await this.messageRepository.save(message)
+        console.log(messageUpdate);
+        await this.updateServerSelect(resp[0], query.message.chat.id, query.message.message_id, messageUpdate)
+      }
+    })
+
+    this.bot.on('callback_query', async (query) => {
+      if (query.data.startsWith('select_episodes_')) {
+        const movieId = query.data.replace('select_episodes_', '').trim()
+        console.log({ movieId });
+
+        const detailMovie = await this.serviceMovieService.detailMovie(movieId)
+        if (!detailMovie) return
+
+        const serverSource = detailMovie.episodes[0].items.map(el => {
+          return {
+            text: _.lowerCase(el.name) == 'full' ? el.name : `Tập ${el.name}`,
+            callback_data: `choose_episodes_${movieId}_${el.slug}`
+          }
+        });
+        let serverSourceChunk = _.chunk(serverSource, 5);
+        if (serverSourceChunk.length > 0) {
+          console.log(serverSourceChunk.pop().length);
+
+          for (let index = 1; index <= 5 - serverSourceChunk.pop().length; index++) {
+            console.log('12');
+          }
+        }
+
+        this.bot.editMessageReplyMarkup({
+          inline_keyboard: [
+            // ...listServerName,
+            [
+              {
+                text: '🔙 Trở về',
+                callback_data: `back_to_${movieId}`
+              }
+            ]
+          ],
+        }, {
+          message_id: query.message.message_id,
+          chat_id: query.message.chat.id
+        })
+
+        // const message = await this.messageRepository.findOne({
+        //   where: {
+        //     messageId: query.message.message_id,
+        //     chatId: query.message.chat.id
+        //   }
+        // })
+
+        // message.data = {
+        //   server_name: resp[1]
+        // }
+
+        // const messageUpdate = await this.messageRepository.save(message)
+        // console.log(messageUpdate);
+        // await this.updateServerSelect(resp[0], query.message.chat.id, query.message.message_id, messageUpdate)
+      }
+    })
+  }
+
+  async updateServerSelect(movieId, chatId, messageId, message = null) {
+    const detailMovie = await this.serviceMovieService.detailMovie(movieId)
+    if (!detailMovie) return
+
+    let serverName = _.get(detailMovie, 'episodes.0.server_name')
+    if (message && message?.data?.server_name) {
+      serverName = message?.data?.server_name
+    }
+    const listServerName = _.values(_.get(detailMovie, 'episodes', {})).map(el => {
+      return [
+        {
+          text: `${serverName == el.server_name ? '✅' : '🔳'} ${el.server_name}`,
+          callback_data: `update_server_name_${movieId}_${el.server_name}`
+        }
+      ]
+    })
+    console.log(listServerName);
+    this.bot.editMessageReplyMarkup({
+      inline_keyboard: [
+        ...listServerName,
+        [
+          {
+            text: '🔙 Trở về',
+            callback_data: `back_to_${movieId}`
+          }
+        ]
+      ],
+    }, {
+      message_id: messageId,
+      chat_id: chatId
+    })
+  }
+
+  async detailMovieReplyMarkup(slug, detailMovie, chatId = null, messageId = null) {
+    let serverName = _.get(detailMovie, 'episodes.0.server_name')
+    if (messageId && chatId) {
+      const message = await this.messageRepository.findOne({
+        where: {
+          messageId: messageId,
+          chatId: chatId
+        }
+      })
+      if (message && message?.data?.server_name) {
+        serverName = message?.data?.server_name
+      }
+    }
+
+    const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
+
+    console.log(serverSource);
+
+    return {
+      inline_keyboard: [
+        // _.get(serverSource, 'items.0.embed') ? [
+        //   {
+        //     text: '↗️ Xem ngay',
+        //     web_app: {
+        //       url: 'https://revenkroz.github.io/telegram-web-app-bot-example/index.html'
+        //       // url: _.get(serverSource, 'items.0.embed')
+        //     }
+        //   },
+        // ] : [],
+        [
+          {
+            text: '🔢 Tập phim',
+            callback_data: `select_episodes_${slug}`
+          },
+          {
+            text: `🔄 Server (${serverName})`,
+            callback_data: `select_server_${slug}`
+          }
+        ],
+        [
+          {
+            text: '🔔 Thông báo',
+            callback_data: `select_notification_${detailMovie.id}`
+          },
+        ],
+        [
+          {
+            text: '⭐ Thêm vào yêu thích',
+            switch_inline_query_current_chat: '#favourite'
+          }
+        ],
+        [
+          {
+            text: '🕐 Lịch sử',
+            switch_inline_query_current_chat: '#history'
+          },
+          {
+            text: '🔍 Tìm kiếm',
+            switch_inline_query_current_chat: ''
+          }
+        ]
+      ]
+    }
   }
 
   async storeMessage(messageReps, isDelete = false) {
@@ -278,7 +450,8 @@ export class BotsService implements OnModuleInit {
       const messageBefores = await this.messageRepository.find({
         select: ['chatId', 'messageId', 'id'],
         where: {
-          deletedAt: IsNull()
+          deletedAt: IsNull(),
+          chatId: messageReps.chat.id
         }
       })
       console.log(messageBefores.map(el => el.id));
