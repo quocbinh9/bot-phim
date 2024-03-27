@@ -1,26 +1,10 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Movie } from './entities/Movie';
-import { Actor } from './entities/Actor';
-import { Category } from './entities/Category';
-import { Director } from './entities/Director';
-import { Episode } from './entities/Episode';
-import { Region } from './entities/Region';
-import { Studio } from './entities/Studio';
-import { Tag } from './entities/Tag';
+import { MoviesService } from './movies.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Actor,
-      Category,
-      Director,
-      Episode,
-      Movie,
-      Region,
-      Studio,
-      Tag,
-    ])
-  ],
+  imports: [ConfigModule],
+  providers: [MoviesService],
+  exports: [MoviesService],
 })
 export class MoviesModule { }

@@ -6,7 +6,7 @@ import * as _ from 'lodash'
 import { ReturningStatementNotSupportedError } from 'typeorm';
 
 @Injectable()
-export class NguoncService {
+export class MoviesService {
   private appUrl: string = ""
 
   constructor(
@@ -29,7 +29,7 @@ export class NguoncService {
             name: el.trim()
           }
         }) : [],
-        thumb_url: $(el).find("img") ? (this.appUrl + '/proxy/image?url=' + $(el).find("img").attr('data-src')) : "",
+        thumb_url: $(el).find("img") ? (this.appUrl + '/share/image?url=' + $(el).find("img").attr('data-src')) : "",
         original_title: $(el).find('h4') ? $(el).find('h4').text().trim() : "",
         status: $(el).find("td:nth(1)") ? $(el).find("td:nth(1)").text().trim() : "",
         release_year: $(el).find("td:nth(3)") ? $(el).find("td:nth(3)").text().trim() : "",
@@ -57,7 +57,7 @@ export class NguoncService {
     }
     return {
       ...response.data?.movie,
-      thumb_url: this.appUrl + '/proxy/image?url=' + response.data?.movie.thumb_url
+      thumb_url: this.appUrl + '/share/image?url=' + response.data?.movie.thumb_url
     }
   }
 }

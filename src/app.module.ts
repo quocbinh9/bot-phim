@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import databaseConfig from './config/database.config';
 import { MoviesModule } from './movies/movies.module';
 import { BotsModule } from './bots/bots.module';
+import { ShareModule } from './share/share.module';
 
 
 @Module({
@@ -19,8 +20,8 @@ import { BotsModule } from './bots/bots.module';
       ],
     }),
     DatabaseModule,
-    MoviesModule,
-    BotsModule
+    BotsModule,
+    ShareModule
   ],
   controllers: [AppController],
   providers: [AppService],
