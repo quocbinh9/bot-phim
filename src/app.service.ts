@@ -4,7 +4,8 @@ import { Injectable } from '@nestjs/common';
 export class AppService {
   getHello() {
     return {
-      msg: 'Server running...'
+      msg: 'Server running...',
+      version: '1.0.1'
     };
   }
 }
