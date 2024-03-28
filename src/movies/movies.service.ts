@@ -60,4 +60,25 @@ export class MoviesService {
       thumb_url: this.appUrl + '/share/image?url=' + response.data?.movie.thumb_url
     }
   }
+
+  async getHlsFromEmbed(url: string) {
+    try {
+      const response = await axios.get(url)
+      return response.data
+    } catch (error) {
+      return "";
+    }
+  }
+
+  async getCategories() {
+    try {
+      const response = await axios.get('https://phim.nguonc.com')
+      const $ = cheerio.load(response?.data ?? '')
+      console.log($('.flex.space-x-8 li:nth-child(5)')
+        .html());
+
+    } catch (error) {
+      return []
+    }
+  }
 }

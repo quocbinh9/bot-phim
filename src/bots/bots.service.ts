@@ -4,10 +4,9 @@ import * as TelegramBot from "node-telegram-bot-api";
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { Member } from './entities/Member';
-import * as moment from 'moment';
-import * as _ from 'lodash';
+import moment from "moment";
+import _ from "lodash";
 import { Message } from './entities/Message';
-import { randomUUID } from 'crypto';
 import { MoviesService } from 'src/movies/movies.service';
 import config from './bots.config'
 import {
@@ -27,7 +26,7 @@ export class BotsService implements OnModuleInit {
 
   private bot: TelegramBot = null
 
-  private appUrl: string = ""
+  private readonly appUrl: string = ""
 
   constructor(
     private readonly configService: ConfigService,
@@ -75,7 +74,7 @@ export class BotsService implements OnModuleInit {
       await this.memberRepository.save(member)
     })
 
-    this.bot.setMyCommands(config.commands, {
+    await this.bot.setMyCommands(config.commands, {
       scope: { type: "default" },
     })
 
@@ -89,7 +88,7 @@ export class BotsService implements OnModuleInit {
           ]
         }
       })
-      this.storeMessage(messageReps, true)
+      await this.storeMessage(messageReps, true)
     });
 
     this.bot.onText(/\/search/, async (msg) => {
@@ -110,7 +109,7 @@ export class BotsService implements OnModuleInit {
           ]
         }
       })
-      this.storeMessage(message, true)
+      await this.storeMessage(message, true)
     })
 
     this.bot.on('inline_query', async (query) => {
@@ -145,17 +144,21 @@ export class BotsService implements OnModuleInit {
       const detailMovie = await this.moviesService.detailMovie(resp)
       if (!detailMovie) return
 
-      const labelCategory = _.values(detailMovie.category).reduce((result, item) => {
-        const label = _.get(item, 'group.name') + ": " + _.get(item, 'list', []).map(el => el.name).join(", ")
-        return `${result}\n${label}`
-      }, '')
+      try {
+        const labelCategory = _.values(detailMovie.category).reduce((result, item) => {
+          const label = _.get(item, 'group.name') + ": " + _.get(item, 'list', []).map(el => el.name).join(", ")
+          return `${result}\n${label}`
+        }, '')
 
-      const caption = `${detailMovie.name} (${detailMovie.original_name})\n\n${detailMovie.description ? detailMovie.description.replace(/<[^>]*>?/gm, '').slice(0, 162) + '...' : '...'}\n\n---------------------\n${labelCategory}\n${detailMovie.language} | ${detailMovie.quality} | ${detailMovie.time}\n\nvia ${this.userName}`
-      const messageReps = await this.bot.sendPhoto(msg.chat.id, detailMovie.thumb_url, {
-        caption,
-        reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie)
-      })
-      this.storeMessage(messageReps, true)
+        const caption = `${detailMovie.name} (${detailMovie.original_name})\n\n${detailMovie.description ? detailMovie.description.replace(/<[^>]*>?/gm, '').slice(0, 162) + '...' : '...'}\n\n---------------------\n${labelCategory}\n${detailMovie.language} | ${detailMovie.quality} | ${detailMovie.time}\n\nvia ${this.userName}`
+        const messageReps = await this.bot.sendPhoto(msg.chat.id, detailMovie.thumb_url, {
+          caption,
+          reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie)
+        })
+        this.storeMessage(messageReps, true)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
     });
 
     this.bot.on('callback_query', async (query) => {
@@ -229,7 +232,7 @@ export class BotsService implements OnModuleInit {
           }
         }
 
-        this.bot.editMessageReplyMarkup({
+        await this.bot.editMessageReplyMarkup({
           inline_keyboard: [
             [
               renderButtonBackMovie(movieId)
@@ -270,7 +273,7 @@ export class BotsService implements OnModuleInit {
             ]
           }
         })
-        this.storeMessage(message, true)
+        await this.storeMessage(message, true)
       }
     })
   }
@@ -320,17 +323,27 @@ export class BotsService implements OnModuleInit {
     }
 
     const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
+    const embed = _.get(serverSource, 'items.0.embed')
+    let linkHls = null
+    if (embed) {
+      try {
+        const embedData = await this.moviesService.getHlsFromEmbed(embed);
+        const regexData = /{"file":"(.*?)",/gm.exec(embedData)
+        linkHls = regexData[1] ?? null;
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
+    }
+
+    console.log({ linkHls, watchNowUrl: `${this.appUrl}/share/player?url=${linkHls}` });
     return {
       inline_keyboard: [
-        _.get(serverSource, 'items.0.embed') ? [
-          renderButtonWebapp('↗️ Xem ngay', 'https://revenkroz.github.io/telegram-web-app-bot-example/index.html'),
+        linkHls ? [
+          renderButtonWebapp('↗️ Xem ngay', `${this.appUrl}/share/player?url=${linkHls}`),
         ] : [],
         [
           renderButtonCallbackData('🔢 Tập phim', `select_episodes_${slug}`),
           renderButtonCallbackData(`🔄 Server (${serverName})`, `select_server_${slug}`)
-        ],
-        [
-          renderButtonCallbackData('🔔 Thông báo', `select_notification_${slug}`)
         ],
         [
           renderButtonCallbackData('⭐ Thêm vào yêu thích', `add_favourite_${slug}`)
@@ -378,6 +391,6 @@ export class BotsService implements OnModuleInit {
     message.text = message.text
     message.reply_markup = message.reply_markup
     message.deletedAt = null
-    this.messageRepository.save(message)
+    await this.messageRepository.save(message)
   }
 }

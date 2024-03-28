@@ -54,7 +54,6 @@ export class ShareService {
       } else {
         throw new Error(content)
       }
-      throw new Error(content)
     } catch (error) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.write(content)
