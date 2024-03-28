@@ -4,13 +4,14 @@ import * as TelegramBot from "node-telegram-bot-api";
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { Member } from './entities/Member';
-import moment from "moment";
-import _ from "lodash";
+import * as moment from "moment";
+import * as _ from "lodash";
 import { Message } from './entities/Message';
 import { MoviesService } from 'src/movies/movies.service';
 import config from './bots.config'
 import {
   renderArticle,
+  renderArticleCategory,
   renderButtonBackMovie,
   renderButtonCallbackData,
   renderButtonSearch,
@@ -118,23 +119,47 @@ export class BotsService implements OnModuleInit {
       const page = (offset / limit) + 1
 
       if (query.query.includes('#')) {
-        return
+        const categories = await this.moviesService.getCategories()
+        if (query.query.startsWith('#categories')) {
+          return this.bot.answerInlineQuery(query.id, categories.map(item => {
+            return renderArticleCategory(item)
+          }), {
+            cache_time: 10
+          })
+        } else {
+          const match = query.query.replace('#', '').split(' ')
+          console.log(match, match.slice(1).join(' '));
+          const cat = _.first(categories.filter(el => el.slug == match[0]))
+          console.log(cat);
+          const { results } = await this.moviesService.discoverMovie(page, match.slice(1).join(' '), match.slice(1).join(' ') ? cat.id : cat.slug)
+          if (results.length == 0) {
+            return this.bot.answerInlineQuery(query.id, [
+              renderArticle()
+            ])
+          }
+
+          this.bot.answerInlineQuery(query.id, [...results].map(item => {
+            return renderArticle(item)
+          }), {
+            cache_time: 0,
+            next_offset: `${limit * page}`,
+          })
+        }
+      } else {
+        const { results } = await this.moviesService.discoverMovie(page, query?.query.trim())
+        if (results.length == 0) {
+          return this.bot.answerInlineQuery(query.id, [
+            renderArticle()
+          ])
+        }
+
+        this.bot.answerInlineQuery(query.id, [...results].map(item => {
+          return renderArticle(item)
+        }), {
+          cache_time: 0,
+          next_offset: `${limit * page}`,
+        })
       }
-
-      const { results } = await this.moviesService.discoverMovie(page, query?.query.trim())
-
-      if (results.length == 0) {
-        return this.bot.answerInlineQuery(query.id, [
-          renderArticle()
-        ])
-      }
-
-      this.bot.answerInlineQuery(query.id, [...results.slice(0, 9)].map(item => {
-        return renderArticle(item)
-      }), {
-        cache_time: 0,
-        next_offset: `${limit * page}`,
-      })
     })
 
     this.bot.onText(/\/watch (.+)/, async (msg, match) => {
@@ -156,6 +181,41 @@ export class BotsService implements OnModuleInit {
           reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie)
         })
         this.storeMessage(messageReps, true)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
+    });
+
+    this.bot.onText(/\/categories(.*)/gm, async (msg, match) => {
+      try {
+        const keyword = match[1].trim()
+        let message = null
+        if (keyword) {
+          const categories = await this.moviesService.getCategories()
+          const cat = _.first(categories.filter(el => el.slug == keyword))
+          if (cat) {
+            message = await this.bot.sendMessage(msg.chat.id, `🗂 Thể loại: ${cat.title}\n\n🔍 Để tìm kiếm, sử dụng các nút bên dưới hoặc gửi tên phim qua tin nhắn`, {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    renderButtonSearch('🔍 Bắt đầu tìm kiếm', `#${cat.slug} `)
+                  ]
+                ]
+              }
+            })
+          }
+        } else {
+          message = await this.bot.sendMessage(msg.chat.id, '🗂 Thể loại\n\n🍿 Chúc các bạn xem vui vẻ! 🍿', {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  renderButtonSearch('🔍 Bắt đầu tìm kiếm', '#categories')
+                ]
+              ]
+            }
+          })
+        }
+        this.storeMessage(message, true)
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -288,10 +348,7 @@ export class BotsService implements OnModuleInit {
     }
     const listServerName = _.values(_.get(detailMovie, 'episodes', {})).map(el => {
       return [
-        {
-          text: `${serverName == el.server_name ? '✅' : '🔳'} ${el.server_name}`,
-          callback_data: `update_server_name_${movieId}_${el.server_name}`
-        }
+        renderButtonCallbackData(`${serverName == el.server_name ? '✅' : '🔳'} ${el.server_name}`, `update_server_name_${movieId}_${el.server_name}`)
       ]
     })
     console.log(listServerName);

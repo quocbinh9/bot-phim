@@ -31,6 +31,29 @@ export const renderButtonWebapp = (text, url) => {
   }
 }
 
+export const renderArticleCategory = (item = null): TelegramBot.InlineQueryResult => {
+  if (!item)
+    return {
+      id: randomUUID(),
+      type: 'article',
+      title: 'Không tìm thấy kết quả 😓',
+      input_message_content: {
+        message_text: '/search'
+      },
+      description: 'Nếu nó không hoạt động, hãy đọc hướng dẫn'
+    }
+
+  return {
+    id: randomUUID(),
+    type: 'article',
+    title: item.title,
+    input_message_content: {
+      message_text: `/categories ${item.slug}`
+    },
+    description: item.slug
+  }
+}
+
 export const renderArticle = (item = null): TelegramBot.InlineQueryResult => {
   if (!item)
     return {

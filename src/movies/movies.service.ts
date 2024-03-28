@@ -15,8 +15,17 @@ export class MoviesService {
     this.appUrl = configService.get<string>('app.url')
   }
 
-  async discoverMovie(page = 1, keyword = "") {
-    const response = await axios.get(keyword ? `https://phim.nguonc.com/tim-kiem?keyword=${keyword}&page=${page}` : `https://phim.nguonc.com/danh-sach-phim?page=${page}`)
+  async discoverMovie(page = 1, keyword = "", cat = null) {
+    console.log({ cat, keyword });
+    let url
+    if (cat) {
+      url = keyword ? `https://phim.nguonc.com/tim-kiem?keyword=${keyword}&sort_field=new&cats%5B6%5D=${cat}&page=${page}` : `https://phim.nguonc.com/the-loai/${cat}?page=${page}`
+    } else {
+      url = keyword ? `https://phim.nguonc.com/tim-kiem?keyword=${keyword}&page=${page}` : `https://phim.nguonc.com/danh-sach-phim?page=${page}`
+    }
+    console.log({ url });
+
+    const response = await axios.get(url)
     const $ = cheerio.load(response.data); // load HTML
 
     const elMovies = $('table[class="min-w-full divide-y divide-gray-200 dark:divide-gray-600"] tbody tr')
@@ -72,11 +81,30 @@ export class MoviesService {
 
   async getCategories() {
     try {
-      const response = await axios.get('https://phim.nguonc.com')
+      const response = await axios.get('https://phim.nguonc.com/tim-kiem?keyword=a')
       const $ = cheerio.load(response?.data ?? '')
-      console.log($('.flex.space-x-8 li:nth-child(5)')
-        .html());
+      let result = [];
 
+      const elementMenu = $('.flex.space-x-8 li:nth-child(5)')
+      if (elementMenu) {
+        elementMenu.find('a').each((index, item) => {
+          result.push({
+            slug: $(item).attr('href') ? $(item).attr('href').trim().split('/').pop() : '',
+            title: $(item).text().trim()
+          })
+        })
+      }
+
+      $('select[name="cats[6]"] option.py-2').each((ix, el) => {
+        const index = result.findIndex(item => item.title == $(el).text())
+        if (index != -1) {
+          result.splice(index, 1, {
+            ...result[index],
+            id: $(el).attr('value')
+          })
+        }
+      })
+      return result
     } catch (error) {
       return []
     }

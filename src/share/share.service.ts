@@ -56,7 +56,7 @@ export class ShareService {
       }
     } catch (error) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.write(content)
+      res.write(error.message)
       return res.end();
     }
   }
@@ -76,7 +76,7 @@ export class ShareService {
         url: url,
         headers: {
           'sec-ch-ua': '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
-          'Referer': 'https://embed.streamc.xyz/',
+          'Referer': 'https://embed1.streamc.xyz/',
           'sec-ch-ua-mobile': '?0',
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
           'sec-ch-ua-platform': '"macOS"'
