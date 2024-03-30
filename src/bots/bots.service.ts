@@ -324,6 +324,10 @@ export class BotsService implements OnModuleInit {
 
           page = parseInt(page as string, 10)
 
+          if (page <= 0) {
+            page = 1
+          }
+
           const serverSource = dataServerSource.map(el => {
             return renderButtonCallbackData(
               (el.slug == episode ? '✔️ ' : '') + (_.lowerCase(el.name) == 'full' ? el.name : `Tập ${el.name}`),
