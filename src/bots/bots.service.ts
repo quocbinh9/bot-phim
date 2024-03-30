@@ -51,10 +51,10 @@ export class BotsService implements OnModuleInit {
 
     this.token = this.configService.get<string>('app.telegramToken');
     this.userName = this.configService.get<string>('app.telegramUsername');
-
     this.bot = new TelegramBot(this.token, {
       polling: true,
     });
+
     this.bot.addListener('message', async (msg) => {
       if (!msg.from) return
       let member = await this.memberRepository.findOne({
@@ -101,12 +101,12 @@ export class BotsService implements OnModuleInit {
             ],
             [
               renderButtonSearch('🗂 Thể loại', '#categories'),
-              renderButtonSearch('🈁 Bộ lọc', 'create_filter')
+              // renderButtonSearch('🈁 Bộ lọc', 'create_filter')
             ],
-            [
-              renderButtonSearch('🕐 Lịch sử', '#history'),
-              renderButtonSearch('⭐ Yêu thích', '#favourite'),
-            ]
+            // [
+            //   renderButtonSearch('🕐 Lịch sử', '#history'),
+            //   renderButtonSearch('⭐ Yêu thích', '#favourite'),
+            // ]
           ]
         }
       })
@@ -120,6 +120,12 @@ export class BotsService implements OnModuleInit {
 
       if (query.query.includes('#')) {
         const categories = await this.moviesService.getCategories()
+        if (query.query.trim() == '#history') {
+          return
+        }
+        if (query.query.trim() == '#favourite') {
+          return
+        }
         if (query.query.startsWith('#categories')) {
           return this.bot.answerInlineQuery(query.id, categories.map(item => {
             return renderArticleCategory(item)
@@ -130,7 +136,6 @@ export class BotsService implements OnModuleInit {
           const match = query.query.replace('#', '').split(' ')
           console.log(match, match.slice(1).join(' '));
           const cat = _.first(categories.filter(el => el.slug == match[0]))
-          console.log(cat);
           const { results } = await this.moviesService.discoverMovie(page, match.slice(1).join(' '), match.slice(1).join(' ') ? cat.id : cat.slug)
           if (results.length == 0) {
             return this.bot.answerInlineQuery(query.id, [
@@ -178,7 +183,7 @@ export class BotsService implements OnModuleInit {
         const caption = `${detailMovie.name} (${detailMovie.original_name})\n\n${detailMovie.description ? detailMovie.description.replace(/<[^>]*>?/gm, '').slice(0, 162) + '...' : '...'}\n\n---------------------\n${labelCategory}\n${detailMovie.language} | ${detailMovie.quality} | ${detailMovie.time}\n\nvia ${this.userName}`
         const messageReps = await this.bot.sendPhoto(msg.chat.id, detailMovie.thumb_url, {
           caption,
-          reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie)
+          reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie, msg.chat.id, msg.message_id)
         })
         this.storeMessage(messageReps, true)
       } catch (error) {
@@ -270,38 +275,130 @@ export class BotsService implements OnModuleInit {
     })
 
     this.bot.on('callback_query', async (query) => {
-      if (query.data.startsWith('select_episodes_')) {
-        const movieId = query.data.replace('select_episodes_', '').trim()
-        console.log({ movieId });
+      try {
+        if (query.data.startsWith('select_episodes_')) {
+          const data = query.data.replace('select_episodes_', '').trim().split('_')
+          const movieId = data[0]
+          const perPage = 25
+          let page = data[1] ?? null as number
+          console.log({ page, movieId });
 
-        const detailMovie = await this.moviesService.detailMovie(movieId)
-        if (!detailMovie) return
+          const message = await this.messageRepository.findOne({
+            where: {
+              messageId: query.message.message_id,
+              chatId: query.message.chat.id
+            }
+          })
 
-        const serverSource = detailMovie.episodes[0].items.map(el => {
-          return {
-            text: _.lowerCase(el.name) == 'full' ? el.name : `Tập ${el.name}`,
-            callback_data: `choose_episodes_${movieId}_${el.slug}`
+          const detailMovie = await this.moviesService.detailMovie(movieId)
+          if (!detailMovie) return
+
+          let serverName = _.get(detailMovie, 'episodes.0.server_name')
+          if (message && message?.data?.server_name) {
+            serverName = message?.data?.server_name
           }
-        });
-        let serverSourceChunk = _.chunk(serverSource, 5);
-        if (serverSourceChunk.length > 0) {
-          console.log(serverSourceChunk.pop().length);
+          const serverNameIndex = detailMovie.episodes.findIndex(el => el.server_name == serverName)
+          console.log({ serverName, serverNameIndex });
 
-          for (let index = 1; index <= 5 - serverSourceChunk.pop().length; index++) {
-            console.log('12');
+          const dataServerSource = detailMovie.episodes[serverNameIndex].items
+          let episode = dataServerSource[0] ? dataServerSource[0].slug : null
+          if (message && message?.data?.episode) {
+            episode = message?.data?.episode
+          }
+
+          const episodeIndex = dataServerSource.findIndex(el => el.slug == episode)
+          if (!page) {
+            page = Math.ceil(episodeIndex / perPage) as unknown as string
+            console.log({ episodeIndex, page });
+          }
+
+          page = parseInt(page as string, 10)
+
+          const serverSource = dataServerSource.map(el => {
+            return renderButtonCallbackData(
+              (el.slug == episode ? '✔️ ' : '') + (_.lowerCase(el.name) == 'full' ? el.name : `Tập ${el.name}`),
+              `choose_episodes_${movieId}_${el.slug}`
+            )
+          });
+
+          const offset = (page - 1) * perPage
+          const limit = offset + perPage
+          const lastPage = Math.ceil(serverSource.length / perPage)
+          console.log({ offset, limit, lastPage });
+
+          let serverSourceChunk = _.chunk(serverSource.slice(offset, limit), 5);
+          if (serverSourceChunk.length > 0) {
+            let lastItem = serverSourceChunk[serverSourceChunk.length - 1]
+            console.log('Length: ' + lastItem.length);
+            console.log('Each: ' + (5 - lastItem.length));
+            const missingLength = (5 - lastItem.length)
+            console.log({ missingLength });
+            for (let index = 0; index < missingLength; index++) {
+              lastItem.push(renderButtonCallbackData('➖', 'unknown'))
+            }
+            serverSourceChunk.splice(serverSourceChunk.length - 1, 1, lastItem)
+          }
+          let nav = []
+          if (page > 1) {
+            nav.push(renderButtonCallbackData('⏪', `select_episodes_${movieId}_1`),)
+            nav.push(renderButtonCallbackData('◀️', `select_episodes_${movieId}_${page - 1 > 0 ? page - 1 : 1}`))
+          } else {
+            nav.push(renderButtonCallbackData('➖', 'unknown'))
+            nav.push(renderButtonCallbackData('➖', 'unknown'))
+          }
+          nav.push(renderButtonCallbackData(`👉 ${page}`, 'unknown'))
+          if (page < lastPage) {
+            nav.push(
+              renderButtonCallbackData('▶️', `select_episodes_${movieId}_${page + 1 < lastPage ? page + 1 : 1}`),
+            )
+            nav.push(renderButtonCallbackData('⏩', `select_episodes_${movieId}_${lastPage}`))
+          } else {
+            nav.push(renderButtonCallbackData('➖', 'unknown'))
+            nav.push(renderButtonCallbackData('➖', 'unknown'))
+          }
+          serverSourceChunk.push(nav)
+
+          await this.bot.editMessageReplyMarkup({
+            inline_keyboard: [
+              ...serverSourceChunk as TelegramBot.InlineKeyboardButton[][],
+              [
+                renderButtonBackMovie(movieId)
+              ]
+            ],
+          }, {
+            message_id: query.message.message_id,
+            chat_id: query.message.chat.id
+          })
+        }
+        if (query.data.startsWith('choose_episodes_')) {
+          const data = query.data.replace('choose_episodes_', '').trim().split('_')
+          const slugMovie = data[0]
+          const slugEpisode = data[1]
+          console.log({ slugMovie, slugEpisode });
+
+          const detailMovie = await this.moviesService.detailMovie(slugMovie)
+          if (!detailMovie) return
+
+          if (slugEpisode && slugMovie) {
+            const message = await this.messageRepository.findOne({
+              where: {
+                messageId: query.message.message_id,
+                chatId: query.message.chat.id
+              }
+            })
+            const messageData = message?.data ? message.data : {}
+            messageData['episode'] = slugEpisode
+            message.data = messageData
+
+            await this.messageRepository.save(message)
+            this.bot.editMessageReplyMarkup(await this.detailMovieReplyMarkup(slugMovie, detailMovie, query.message.chat.id, query.message.message_id), {
+              message_id: query.message.message_id,
+              chat_id: query.message.chat.id
+            })
           }
         }
-
-        await this.bot.editMessageReplyMarkup({
-          inline_keyboard: [
-            [
-              renderButtonBackMovie(movieId)
-            ]
-          ],
-        }, {
-          message_id: query.message.message_id,
-          chat_id: query.message.chat.id
-        })
+      } catch (error) {
+        console.log("Error: " + error.message);
       }
     })
 
@@ -322,14 +419,14 @@ export class BotsService implements OnModuleInit {
               [
                 renderButtonSearch('🔍 Tìm kiếm', msg.text)
               ],
-              [
-                renderButtonSearch('🗂 Thể loại', '#categories'),
-                renderButtonSearch('🈁 Bộ lọc', 'create_filter')
-              ],
-              [
-                renderButtonSearch('🕐 Lịch sử', '#history'),
-                renderButtonSearch('⭐ Yêu thích', '#favourite'),
-              ]
+              // [
+              //   // renderButtonSearch('🗂 Thể loại', '#categories'),
+              //   // renderButtonSearch('🈁 Bộ lọc', 'create_filter')
+              // ],
+              // [
+              //   renderButtonSearch('🕐 Lịch sử', '#history'),
+              //   renderButtonSearch('⭐ Yêu thích', '#favourite'),
+              // ]
             ]
           }
         })
@@ -366,8 +463,8 @@ export class BotsService implements OnModuleInit {
   }
 
   async detailMovieReplyMarkup(slug, detailMovie, chatId = null, messageId = null) {
-    let serverName = _.get(detailMovie, 'episodes.0.server_name')
-    if (messageId && chatId) {
+    try {
+      let serverName = _.get(detailMovie, 'episodes.0.server_name')
       const message = await this.messageRepository.findOne({
         where: {
           messageId: messageId,
@@ -377,39 +474,55 @@ export class BotsService implements OnModuleInit {
       if (message && message?.data?.server_name) {
         serverName = message?.data?.server_name
       }
-    }
 
-    const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
-    const embed = _.get(serverSource, 'items.0.embed')
-    let linkHls = null
-    if (embed) {
-      try {
-        const embedData = await this.moviesService.getHlsFromEmbed(embed);
-        const regexData = /{"file":"(.*?)",/gm.exec(embedData)
-        linkHls = regexData[1] ?? null;
-      } catch (error) {
-        console.log('ERROR: ' + error.message);
+      const serverNameIndex = _.get(detailMovie, 'episodes', []).findIndex(el => el.server_name == serverName)
+      console.log({ serverName, serverNameIndex });
+
+      const dataServerSource = _.get(detailMovie, 'episodes', [])[serverNameIndex].items
+      let episode = dataServerSource[0] ? dataServerSource[0].slug : null
+      if (message && message?.data?.episode) {
+        episode = message?.data?.episode
       }
-    }
+      episode = _.first(_.get(detailMovie, `episodes.${serverNameIndex}.items`, []).filter(el => el.slug == episode))
+      console.log({ episode });
 
-    console.log({ linkHls, watchNowUrl: `${this.appUrl}/share/player?url=${linkHls}` });
-    return {
-      inline_keyboard: [
-        linkHls ? [
-          renderButtonWebapp('↗️ Xem ngay', `${this.appUrl}/share/player?url=${linkHls}`),
-        ] : [],
-        [
-          renderButtonCallbackData('🔢 Tập phim', `select_episodes_${slug}`),
-          renderButtonCallbackData(`🔄 Server (${serverName})`, `select_server_${slug}`)
-        ],
-        [
-          renderButtonCallbackData('⭐ Thêm vào yêu thích', `add_favourite_${slug}`)
-        ],
-        [
-          renderButtonSearch('🕐 Lịch sử', '#history'),
-          renderButtonSearch('🔍 Tìm kiếm')
+      const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
+      const embed = _.get(serverSource, 'items.0.embed')
+      let linkHls = null
+      if (embed) {
+        try {
+          const embedData = await this.moviesService.getHlsFromEmbed(embed);
+          const regexData = /{"file":"(.*?)",/gm.exec(embedData)
+          linkHls = regexData[1] ?? null;
+        } catch (error) {
+          console.log('ERROR: ' + error.message);
+        }
+      }
+
+      console.log({ linkHls, watchNowUrl: `${this.appUrl}/share/player?url=${linkHls}` });
+      return {
+        inline_keyboard: [
+          linkHls ? [
+            renderButtonWebapp(
+              '↗️ Xem ngay (' + (_.lowerCase(episode.name) == 'full' ? episode.name : `Tập ${episode.name}`) + ')',
+              `${this.appUrl}/share/player?url=${linkHls}`
+            ),
+          ] : [],
+          [
+            renderButtonCallbackData('🔢 Tập phim', `select_episodes_${slug}`),
+            renderButtonCallbackData(`🔄 Server (${serverName})`, `select_server_${slug}`)
+          ],
+          // [
+          //   renderButtonCallbackData('⭐ Thêm vào yêu thích', `add_favourite_${slug}`)
+          // ],
+          [
+            // renderButtonSearch('🕐 Lịch sử', '#history'),
+            renderButtonSearch('🔍 Tìm kiếm')
+          ]
         ]
-      ]
+      }
+    } catch (error) {
+      console.log('Error: ' + error.message);
     }
   }
 
