@@ -4,10 +4,10 @@ export default {
       command: 'search',
       description: '🔍 Tìm kiếm'
     },
-    {
-      command: 'filter',
-      description: '🈁 Bộ lọc'
-    },
+    // {
+    //   command: 'filter',
+    //   description: '🈁 Bộ lọc'
+    // },
     {
       command: 'categories',
       description: '🗂 Thể loại'

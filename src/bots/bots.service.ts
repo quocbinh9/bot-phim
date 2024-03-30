@@ -92,6 +92,16 @@ export class BotsService implements OnModuleInit {
       await this.storeMessage(messageReps, true)
     });
 
+    this.bot.onText(/\/settings/, async (msg) => {
+      const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
+      await this.storeMessage(messageReps, true)
+    });
+
+    this.bot.onText(/\/support/, async (msg) => {
+      const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
+      await this.storeMessage(messageReps, true)
+    });
+
     this.bot.onText(/\/search/, async (msg) => {
       const message = await this.bot.sendMessage(msg.chat.id, 'Để tìm bộ phim bạn cần, hãy nhấp vào nút "Bắt đầu tìm kiếm" và nhập yêu cầu của bạn hoặc chỉ cần gửi yêu cầu của bạn qua tin nhắn\n\nNếu nó không hoạt động, hãy đọc hướng dẫn', {
         reply_markup: {
