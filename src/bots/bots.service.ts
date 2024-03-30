@@ -94,7 +94,7 @@ export class BotsService implements OnModuleInit {
             ]
           }
         })
-        await this.storeMessage(messageReps, true)
+        await this.storeMessage(messageReps, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -103,7 +103,7 @@ export class BotsService implements OnModuleInit {
     this.bot.onText(/\/settings/, async (msg) => {
       try {
         const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
-        await this.storeMessage(messageReps, true)
+        await this.storeMessage(messageReps, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -112,7 +112,7 @@ export class BotsService implements OnModuleInit {
     this.bot.onText(/\/support/, async (msg) => {
       try {
         const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
-        await this.storeMessage(messageReps, true)
+        await this.storeMessage(messageReps, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -137,7 +137,7 @@ export class BotsService implements OnModuleInit {
             ]
           }
         })
-        await this.storeMessage(message, true)
+        await this.storeMessage(message, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -205,7 +205,13 @@ export class BotsService implements OnModuleInit {
 
     this.bot.onText(/\/watch (.+)/, async (msg, match) => {
       const resp = match[1]; // the captured "whatever"
-      this.bot.deleteMessage(msg.chat.id, msg.message_id);
+      if (msg.chat.type == 'private') {
+        try {
+          this.bot.deleteMessage(msg.chat.id, msg.message_id);
+        } catch (error) {
+          console.log('ERROR: ' + error.message);
+        }
+      }
 
       const detailMovie = await this.moviesService.detailMovie(resp)
       if (!detailMovie) return
@@ -221,7 +227,7 @@ export class BotsService implements OnModuleInit {
           caption,
           reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie, msg.chat.id, msg.message_id)
         })
-        this.storeMessage(messageReps, true)
+        this.storeMessage(messageReps, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -256,7 +262,7 @@ export class BotsService implements OnModuleInit {
             }
           })
         }
-        this.storeMessage(message, true)
+        this.storeMessage(message, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
       }
@@ -269,7 +275,7 @@ export class BotsService implements OnModuleInit {
         const message = await this.messageRepository.findOne({
           where: {
             messageId: query.message.message_id,
-            chatId: query.message.chat.id
+            chatId: `${query.message.chat.id}`
           }
         })
         await this.updateServerSelect(resp, query.message.chat.id, query.message.message_id, message)
@@ -301,7 +307,7 @@ export class BotsService implements OnModuleInit {
           const message = await this.messageRepository.findOne({
             where: {
               messageId: query.message.message_id,
-              chatId: query.message.chat.id
+              chatId: `${query.message.chat.id}`
             }
           })
 
@@ -330,7 +336,7 @@ export class BotsService implements OnModuleInit {
           const message = await this.messageRepository.findOne({
             where: {
               messageId: query.message.message_id,
-              chatId: query.message.chat.id
+              chatId: `${query.message.chat.id}`
             }
           })
 
@@ -431,7 +437,7 @@ export class BotsService implements OnModuleInit {
             const message = await this.messageRepository.findOne({
               where: {
                 messageId: query.message.message_id,
-                chatId: query.message.chat.id
+                chatId: `${query.message.chat.id}`
               }
             })
             const messageData = message?.data ? message.data : {}
@@ -479,7 +485,7 @@ export class BotsService implements OnModuleInit {
               ]
             }
           })
-          await this.storeMessage(message, true)
+          await this.storeMessage(message, msg.chat.type == 'private')
         }
       } catch (error) {
         console.log('Error: ' + error.message);
@@ -501,7 +507,7 @@ export class BotsService implements OnModuleInit {
             const message = await this.messageRepository.findOne({
               where: {
                 messageId: query.message.message_id,
-                chatId: query.message.chat.id
+                chatId: `${query.message.chat.id}`
               }
             })
             const messageData = message?.data ? message.data : {}

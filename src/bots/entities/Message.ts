@@ -23,9 +23,10 @@ export class Message {
   from: Record<string, any>;
 
   @Column({
+    type: 'varchar',
     nullable: true
   })
-  chatId: number;
+  chatId: string;
 
   @Column({
     type: 'json',
@@ -49,7 +50,6 @@ export class Message {
     nullable: true,
   })
   reply_markup: string;
-
 
   @Column({
     type: 'json',
