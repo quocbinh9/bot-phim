@@ -124,29 +124,47 @@ export class BotsService implements OnModuleInit {
     })
 
     this.bot.on('inline_query', async (query) => {
-      const limit = 20
-      const offset: number = query.offset ? parseInt(query.offset, 10) : 0
-      const page = (offset / limit) + 1
+      try {
+        const limit = 20
+        const offset: number = query.offset ? parseInt(query.offset, 10) : 0
+        const page = (offset / limit) + 1
 
-      if (query.query.includes('#')) {
-        const categories = await this.moviesService.getCategories()
-        if (query.query.trim() == '#history') {
-          return
-        }
-        if (query.query.trim() == '#favourite') {
-          return
-        }
-        if (query.query.startsWith('#categories')) {
-          return this.bot.answerInlineQuery(query.id, categories.map(item => {
-            return renderArticleCategory(item)
-          }), {
-            cache_time: 10
-          })
+        if (query.query.includes('#')) {
+          const categories = await this.moviesService.getCategories()
+          if (query.query.trim() == '#history') {
+            return
+          }
+          if (query.query.trim() == '#favourite') {
+            return
+          }
+          if (query.query.startsWith('#categories')) {
+            return this.bot.answerInlineQuery(query.id, categories.map(item => {
+              return renderArticleCategory(item)
+            }), {
+              cache_time: 10
+            })
+          } else {
+            const match = query.query.replace('#', '').split(' ')
+            console.log(match, match.slice(1).join(' '));
+            const cat = _.first(categories.filter(el => el.slug == match[0]))
+            const { results } = await this.moviesService.discoverMovie(page, match.slice(1).join(' '), match.slice(1).join(' ') ? cat.id : cat.slug)
+            if (results.length == 0) {
+              return this.bot.answerInlineQuery(query.id, [
+                renderArticle()
+              ])
+            }
+
+            this.bot.answerInlineQuery(query.id, [...results].map(item => {
+              return renderArticle(item)
+            }), {
+              cache_time: 0,
+              next_offset: `${limit * page}`,
+            })
+          }
         } else {
-          const match = query.query.replace('#', '').split(' ')
-          console.log(match, match.slice(1).join(' '));
-          const cat = _.first(categories.filter(el => el.slug == match[0]))
-          const { results } = await this.moviesService.discoverMovie(page, match.slice(1).join(' '), match.slice(1).join(' ') ? cat.id : cat.slug)
+          const { results } = await this.moviesService.discoverMovie(page, query?.query.trim())
+          console.log(results);
+
           if (results.length == 0) {
             return this.bot.answerInlineQuery(query.id, [
               renderArticle()
@@ -160,20 +178,8 @@ export class BotsService implements OnModuleInit {
             next_offset: `${limit * page}`,
           })
         }
-      } else {
-        const { results } = await this.moviesService.discoverMovie(page, query?.query.trim())
-        if (results.length == 0) {
-          return this.bot.answerInlineQuery(query.id, [
-            renderArticle()
-          ])
-        }
-
-        this.bot.answerInlineQuery(query.id, [...results].map(item => {
-          return renderArticle(item)
-        }), {
-          cache_time: 0,
-          next_offset: `${limit * page}`,
-        })
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
       }
     })
 
@@ -330,7 +336,7 @@ export class BotsService implements OnModuleInit {
 
           const serverSource = dataServerSource.map(el => {
             return renderButtonCallbackData(
-              (el.slug == episode ? '✔️ ' : '') + (_.lowerCase(el.name) == 'full' ? el.name : `Tập ${el.name}`),
+              (el.slug == episode ? '✔️ ' : '') + (_.lowerCase(el.name) == 'full' ? el.name : `${el.name}`),
               `choose_episodes_${movieId}_${el.slug}`
             )
           });
@@ -360,7 +366,7 @@ export class BotsService implements OnModuleInit {
             nav.push(renderButtonCallbackData('➖', 'unknown'))
             nav.push(renderButtonCallbackData('➖', 'unknown'))
           }
-          nav.push(renderButtonCallbackData(`👉 ${page}`, 'unknown'))
+          nav.push(renderButtonCallbackData(`👉${page}👈`, 'unknown'))
           if (page < lastPage) {
             nav.push(
               renderButtonCallbackData('▶️', `select_episodes_${movieId}_${page + 1 < lastPage ? page + 1 : 1}`),
@@ -447,6 +453,40 @@ export class BotsService implements OnModuleInit {
         await this.storeMessage(message, true)
       }
     })
+
+    this.bot.on('callback_query', async (query) => {
+      try {
+        if (query.data.startsWith('select_next_episode_') || query.data.startsWith('select_prev_episode_')) {
+          const data = query.data.replace('select_next_episode_', '').replace('select_prev_episode_', '').trim().split('_')
+          const slugMovie = data[0]
+          const slugEpisode = data[1]
+          console.log({ slugMovie, slugEpisode });
+
+          const detailMovie = await this.moviesService.detailMovie(slugMovie)
+          if (!detailMovie) return
+
+          if (slugEpisode && slugMovie) {
+            const message = await this.messageRepository.findOne({
+              where: {
+                messageId: query.message.message_id,
+                chatId: query.message.chat.id
+              }
+            })
+            const messageData = message?.data ? message.data : {}
+            messageData['episode'] = slugEpisode
+            message.data = messageData
+
+            await this.messageRepository.save(message)
+            this.bot.editMessageReplyMarkup(await this.detailMovieReplyMarkup(slugMovie, detailMovie, query.message.chat.id, query.message.message_id), {
+              message_id: query.message.message_id,
+              chat_id: query.message.chat.id
+            })
+          }
+        }
+      } catch (error) {
+        console.log('Error: ' + error.message);
+      }
+    })
   }
 
   async updateServerSelect(movieId, chatId, messageId, message = null) {
@@ -497,11 +537,18 @@ export class BotsService implements OnModuleInit {
       if (message && message?.data?.episode) {
         episode = message?.data?.episode
       }
-      episode = _.first(_.get(detailMovie, `episodes.${serverNameIndex}.items`, []).filter(el => el.slug == episode))
-      console.log({ episode });
+      const episodes = _.get(detailMovie, `episodes.${serverNameIndex}.items`, [])
+      let episodeIndex = episodes.findIndex(el => el.slug == episode)
+      if (episodeIndex == -1) {
+        episodeIndex = 1
+      }
+      episode = episodes[episodeIndex]
+      const episodePrev = episodes[episodeIndex - 1]
+      const episodeNext = episodes[episodeIndex + 1]
+      console.log({ episode, episodeNext, episodePrev });
 
-      const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
-      const embed = _.get(serverSource, 'items.0.embed')
+      // const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
+      const embed = _.get(episode, 'embed')
       // let linkHls = null
       // if (embed) {
       //   try {
@@ -512,7 +559,6 @@ export class BotsService implements OnModuleInit {
       //     console.log('ERROR: ' + error.message);
       //   }
       // }
-
       console.log({ watchNowUrl: `${this.appUrl}/share/player?url=${embed}` });
       return {
         inline_keyboard: [
@@ -521,6 +567,14 @@ export class BotsService implements OnModuleInit {
               '↗️ Xem ngay (' + (_.lowerCase(episode.name) == 'full' ? episode.name : `Tập ${episode.name}`) + ')',
               `${this.appUrl}/share/player?url=${embed}`
             ),
+          ] : [],
+          episodes.length > 1 ? [
+            episodeIndex == 0 || !episodePrev
+              ? renderButtonCallbackData('➖', 'unknown')
+              : renderButtonCallbackData('◀️ Tập trước đó', `select_prev_episode_${slug}_${episodePrev.slug}`),
+            episodeIndex == episodes.length - 1 || !episodeNext
+              ? renderButtonCallbackData('➖', 'unknown')
+              : renderButtonCallbackData('Tập tiếp theo ▶️', `select_next_episode_${slug}_${episodeNext.slug}`),
           ] : [],
           [
             renderButtonCallbackData('🔢 Tập phim', `select_episodes_${slug}`),
@@ -561,7 +615,7 @@ export class BotsService implements OnModuleInit {
         try {
           this.bot.deleteMessage(item.chatId, item.messageId)
         } catch (error) {
-          console.log(error.message);
+          console.log('Error: ' + error.message);
         }
       })
     }
