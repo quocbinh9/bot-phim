@@ -498,24 +498,24 @@ export class BotsService implements OnModuleInit {
 
       const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
       const embed = _.get(serverSource, 'items.0.embed')
-      let linkHls = null
-      if (embed) {
-        try {
-          const embedData = await this.moviesService.getHlsFromEmbed(embed);
-          const regexData = /{"file":"(.*?)",/gm.exec(embedData)
-          linkHls = regexData[1] ?? null;
-        } catch (error) {
-          console.log('ERROR: ' + error.message);
-        }
-      }
+      // let linkHls = null
+      // if (embed) {
+      //   try {
+      //     const embedData = await this.moviesService.getHlsFromEmbed(embed);
+      //     const regexData = /{"file":"(.*?)",/gm.exec(embedData)
+      //     linkHls = regexData[1] ?? null;
+      //   } catch (error) {
+      //     console.log('ERROR: ' + error.message);
+      //   }
+      // }
 
-      console.log({ linkHls, watchNowUrl: `${this.appUrl}/share/player?url=${linkHls}` });
+      console.log({ watchNowUrl: `${this.appUrl}/share/player?url=${embed}` });
       return {
         inline_keyboard: [
-          linkHls ? [
+          embed ? [
             renderButtonWebapp(
               '↗️ Xem ngay (' + (_.lowerCase(episode.name) == 'full' ? episode.name : `Tập ${episode.name}`) + ')',
-              `${this.appUrl}/share/player?url=${linkHls}`
+              `${this.appUrl}/share/player?url=${embed}`
             ),
           ] : [],
           [
