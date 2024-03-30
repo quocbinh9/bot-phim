@@ -56,71 +56,91 @@ export class BotsService implements OnModuleInit {
     });
 
     this.bot.addListener('message', async (msg) => {
-      if (!msg.from) return
-      let member = await this.memberRepository.findOne({
-        where: {
-          chatId: msg.from.id
+      try {
+        if (!msg.from) return
+        let member = await this.memberRepository.findOne({
+          where: {
+            chatId: msg.from.id
+          }
+        })
+        if (!member) {
+          member = new Member()
         }
-      })
-      if (!member) {
-        member = new Member()
+
+        member.chatId = msg.from.id
+        member.firstName = msg.from.first_name
+        member.lastName = msg.from.last_name
+        member.languageCode = msg.from.language_code
+        member.isBot = msg.from.is_bot
+
+        await this.memberRepository.save(member)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
       }
-
-      member.chatId = msg.from.id
-      member.firstName = msg.from.first_name
-      member.lastName = msg.from.last_name
-      member.languageCode = msg.from.language_code
-      member.isBot = msg.from.is_bot
-
-      await this.memberRepository.save(member)
     })
 
     await this.bot.setMyCommands(config.commands, {
       scope: { type: "default" },
-    })
+    }).then(console.log).catch(console.log)
 
     this.bot.onText(/\/start/, async (msg) => {
-      const messageReps = await this.bot.sendMessage(msg.chat.id, `🍿 Xin chào các bạn yêu thích phim!\n\n🔍 Để tìm kiếm, sử dụng các nút bên dưới hoặc gửi tên phim qua tin nhắn`, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              renderButtonSearch()
-            ],
-          ]
-        }
-      })
-      await this.storeMessage(messageReps, true)
+      try {
+        const messageReps = await this.bot.sendMessage(msg.chat.id, `🍿 Xin chào các bạn yêu thích phim!\n\n🔍 Để tìm kiếm, sử dụng các nút bên dưới hoặc gửi tên phim qua tin nhắn`, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                renderButtonSearch()
+              ],
+            ]
+          }
+        })
+        await this.storeMessage(messageReps, true)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
     });
 
     this.bot.onText(/\/settings/, async (msg) => {
-      const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
-      await this.storeMessage(messageReps, true)
+      try {
+        const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
+        await this.storeMessage(messageReps, true)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
     });
 
     this.bot.onText(/\/support/, async (msg) => {
-      const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
-      await this.storeMessage(messageReps, true)
+      try {
+        const messageReps = await this.bot.sendMessage(msg.chat.id, 'Oops! tính năng này đang được phát triển, chúng tôi sẽ thông báo đến bạn khi nó hoàn thành')
+        await this.storeMessage(messageReps, true)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
     });
 
     this.bot.onText(/\/search/, async (msg) => {
-      const message = await this.bot.sendMessage(msg.chat.id, 'Để tìm bộ phim bạn cần, hãy nhấp vào nút "Bắt đầu tìm kiếm" và nhập yêu cầu của bạn hoặc chỉ cần gửi yêu cầu của bạn qua tin nhắn\n\nNếu nó không hoạt động, hãy đọc hướng dẫn', {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              renderButtonSearch('🔍 Tìm kiếm')
-            ],
-            [
-              renderButtonSearch('🗂 Thể loại', '#categories'),
-              // renderButtonSearch('🈁 Bộ lọc', 'create_filter')
-            ],
-            // [
-            //   renderButtonSearch('🕐 Lịch sử', '#history'),
-            //   renderButtonSearch('⭐ Yêu thích', '#favourite'),
-            // ]
-          ]
-        }
-      })
-      await this.storeMessage(message, true)
+      try {
+        const message = await this.bot.sendMessage(msg.chat.id, 'Để tìm bộ phim bạn cần, hãy nhấp vào nút "Bắt đầu tìm kiếm" và nhập yêu cầu của bạn hoặc chỉ cần gửi yêu cầu của bạn qua tin nhắn\n\nNếu nó không hoạt động, hãy đọc hướng dẫn', {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                renderButtonSearch('🔍 Tìm kiếm')
+              ],
+              [
+                renderButtonSearch('🗂 Thể loại', '#categories'),
+                // renderButtonSearch('🈁 Bộ lọc', 'create_filter')
+              ],
+              // [
+              //   renderButtonSearch('🕐 Lịch sử', '#history'),
+              //   renderButtonSearch('⭐ Yêu thích', '#favourite'),
+              // ]
+            ]
+          }
+        })
+        await this.storeMessage(message, true)
+      } catch (error) {
+        console.log('ERROR: ' + error.message);
+      }
     })
 
     this.bot.on('inline_query', async (query) => {
@@ -257,36 +277,44 @@ export class BotsService implements OnModuleInit {
     })
 
     this.bot.on('callback_query', async (query) => {
-      if (query.data.startsWith('back_to_')) {
-        const resp = query.data.replace('back_to_', '').trim()
+      try {
+        if (query.data.startsWith('back_to_')) {
+          const resp = query.data.replace('back_to_', '').trim()
 
-        const detailMovie = await this.moviesService.detailMovie(resp)
-        if (!detailMovie) return
+          const detailMovie = await this.moviesService.detailMovie(resp)
+          if (!detailMovie) return
 
-        this.bot.editMessageReplyMarkup(await this.detailMovieReplyMarkup(resp, detailMovie, query.message.chat.id, query.message.message_id), {
-          message_id: query.message.message_id,
-          chat_id: query.message.chat.id
-        })
+          this.bot.editMessageReplyMarkup(await this.detailMovieReplyMarkup(resp, detailMovie, query.message.chat.id, query.message.message_id), {
+            message_id: query.message.message_id,
+            chat_id: query.message.chat.id
+          })
+        }
+      } catch (error) {
+        console.log('Error: ' + error.message);
       }
     })
 
     this.bot.on('callback_query', async (query) => {
-      if (query.data.startsWith('update_server_name_')) {
-        const resp = query.data.replace('update_server_name_', '').trim().split('_')
-        const message = await this.messageRepository.findOne({
-          where: {
-            messageId: query.message.message_id,
-            chatId: query.message.chat.id
+      try {
+        if (query.data.startsWith('update_server_name_')) {
+          const resp = query.data.replace('update_server_name_', '').trim().split('_')
+          const message = await this.messageRepository.findOne({
+            where: {
+              messageId: query.message.message_id,
+              chatId: query.message.chat.id
+            }
+          })
+
+          message.data = {
+            server_name: resp[1]
           }
-        })
 
-        message.data = {
-          server_name: resp[1]
+          const messageUpdate = await this.messageRepository.save(message)
+          console.log(messageUpdate);
+          await this.updateServerSelect(resp[0], query.message.chat.id, query.message.message_id, messageUpdate)
         }
-
-        const messageUpdate = await this.messageRepository.save(message)
-        console.log(messageUpdate);
-        await this.updateServerSelect(resp[0], query.message.chat.id, query.message.message_id, messageUpdate)
+      } catch (error) {
+        console.log('Error: ' + error.message);
       }
     })
 
@@ -432,25 +460,29 @@ export class BotsService implements OnModuleInit {
     })
 
     this.bot.addListener('message', async (msg) => {
-      if (!msg.text.startsWith('/')) {
-        const message = await this.bot.sendMessage(msg.chat.id, `🔍 Bạn có thể xem kết quả của truy vấn "${msg.text}" bằng cách nhấp vào nút "Kết quả tìm kiếm"\n\nNếu nó không hoạt động, hãy đọc hướng dẫn`, {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                renderButtonSearch('🔍 Tìm kiếm', msg.text)
-              ],
-              // [
-              //   // renderButtonSearch('🗂 Thể loại', '#categories'),
-              //   // renderButtonSearch('🈁 Bộ lọc', 'create_filter')
-              // ],
-              // [
-              //   renderButtonSearch('🕐 Lịch sử', '#history'),
-              //   renderButtonSearch('⭐ Yêu thích', '#favourite'),
-              // ]
-            ]
-          }
-        })
-        await this.storeMessage(message, true)
+      try {
+        if (!msg.text.startsWith('/')) {
+          const message = await this.bot.sendMessage(msg.chat.id, `🔍 Bạn có thể xem kết quả của truy vấn "${msg.text}" bằng cách nhấp vào nút "Kết quả tìm kiếm"\n\nNếu nó không hoạt động, hãy đọc hướng dẫn`, {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  renderButtonSearch('🔍 Tìm kiếm', msg.text)
+                ],
+                // [
+                //   // renderButtonSearch('🗂 Thể loại', '#categories'),
+                //   // renderButtonSearch('🈁 Bộ lọc', 'create_filter')
+                // ],
+                // [
+                //   renderButtonSearch('🕐 Lịch sử', '#history'),
+                //   renderButtonSearch('⭐ Yêu thích', '#favourite'),
+                // ]
+              ]
+            }
+          })
+          await this.storeMessage(message, true)
+        }
+      } catch (error) {
+        console.log('Error: ' + error.message);
       }
     })
 
