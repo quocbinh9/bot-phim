@@ -20,7 +20,7 @@ export class ShareController {
   @Get('share/player')
   // @Render('telegram-web-app.hbs')
   @Render('telegram-iframe.hbs')
-  player(@Query('url') url: string) {
-    return this.shareService.player(url)
+  player(@Query('url') url: string, @Query('nextUrl') nextUrl: string,) {
+    return this.shareService.player(url, nextUrl)
   }
 }

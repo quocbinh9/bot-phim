@@ -587,6 +587,7 @@ export class BotsService implements OnModuleInit {
 
       // const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
       const embed = _.get(episode, 'embed')
+      const embedNext = _.get(episodeNext, 'embed')
       // let linkHls = null
       // if (embed) {
       //   try {
@@ -597,13 +598,13 @@ export class BotsService implements OnModuleInit {
       //     console.log('ERROR: ' + error.message);
       //   }
       // }
-      console.log({ watchNowUrl: `${this.appUrl}/share/player?url=${embed}` });
+      console.log({ watchNowUrl: `${this.appUrl}/share/player?url=${embed}&nextUrl=${embedNext}` });
       return {
         inline_keyboard: [
           embed ? [
             renderButtonWebapp(
               '↗️ Xem ngay (' + (_.lowerCase(episode.name) == 'full' ? episode.name : `Tập ${episode.name}`) + ')',
-              `${this.appUrl}/share/player?url=${embed}`
+              `${this.appUrl}/share/player?url=${embed}&nextUrl=${embedNext}`
             ),
           ] : [],
           episodes.length > 1 ? [

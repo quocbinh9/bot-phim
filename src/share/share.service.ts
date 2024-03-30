@@ -61,11 +61,12 @@ export class ShareService {
     }
   }
 
-  async player(url: string) {
+  async player(url: string, nextUrl: string | null = null) {
     return {
       url: `${this.appUrl}/share/hbs`,
       hbsUrl: url,
-      iframeUrl: url
+      iframeUrl: url,
+      iframeNextUrl: nextUrl
     };
   }
 
