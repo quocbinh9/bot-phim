@@ -17,6 +17,11 @@ export class Message {
   messageId: number;
 
   @Column({
+    nullable: true
+  })
+  replyOfMesageId: number;
+
+  @Column({
     type: 'json',
     nullable: true
   })

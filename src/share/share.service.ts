@@ -120,15 +120,13 @@ export class ShareService {
 
     const message = await this.botsService.saveNextEpisode(chatId, messageId, episodeNext.slug)
     console.log(message);
-
     try {
-      await this.botsService.bot.editMessageReplyMarkup(await this.botsService.detailMovieReplyMarkup(slugMovie, detailMovie, chatId, messageId), {
-        message_id: messageId,
-        chat_id: chatId
+      await this.botsService.bot.editMessageReplyMarkup(await this.botsService.detailMovieReplyMarkup(slugMovie, detailMovie, message.chatId, message.messageId), {
+        message_id: message.messageId,
+        chat_id: message.chatId
       })
     } catch (error) {
       console.log('Error: ' + error.message);
-
     }
 
     return {

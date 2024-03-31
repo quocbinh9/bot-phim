@@ -227,6 +227,7 @@ export class BotsService implements OnModuleInit {
           caption,
           reply_markup: await this.detailMovieReplyMarkup(resp, detailMovie, msg.chat.id, msg.message_id)
         })
+        messageReps['reply_of_message_id'] = msg.message_id
         this.storeMessage(messageReps, msg.chat.type == 'private')
       } catch (error) {
         console.log('ERROR: ' + error.message);
@@ -670,27 +671,40 @@ export class BotsService implements OnModuleInit {
     message.chat = messageReps.chat
     message.from = messageReps.from
     message.messageId = messageReps.message_id
-    message.date = message.date
-    message.text = message.text
-    message.reply_markup = message.reply_markup
+    message.date = messageReps.date
+    message.text = messageReps.text
+    message.replyOfMesageId = messageReps.reply_of_message_id
+    message.reply_markup = messageReps.reply_markup
     message.deletedAt = null
     await this.messageRepository.save(message)
   }
 
   async saveNextEpisode(chatId: number, messageId: number, slugEpisode) {
     console.log(chatId, messageId);
-    const message = await this.messageRepository.findOne({
+    let message = await this.messageRepository.findOne({
       where: {
         messageId: messageId,
         chatId: chatId
       }
     })
 
-    const messageData = message?.data ? message.data : {}
+    console.log(message, { chatId, messageId });
+    if (!message) {
+      message = await this.messageRepository.findOne({
+        where: {
+          replyOfMesageId: messageId,
+          chatId: chatId
+        }
+      })
+    }
+    console.log(message, { chatId, messageId });
+
+    const messageData = message.data ? message.data : {}
     messageData['episode'] = slugEpisode
     message.data = messageData
 
     console.log(message.data);
-    return await this.messageRepository.save(message)
+    await this.messageRepository.save(message)
+    return { chatId: message.chatId, messageId: message.messageId }
   }
 }
