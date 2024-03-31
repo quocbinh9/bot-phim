@@ -588,8 +588,8 @@ export class BotsService implements OnModuleInit {
 
       // const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
       const embed = _.get(episode, 'embed')
-      const nextSlug = _.get(episodeNext, 'slug')
-      const nextEmbed = _.get(episodeNext, 'embed')
+      const nextSlug = _.get(episodeNext, 'slug', '')
+      const nextEmbed = _.get(episodeNext, 'embed', '')
       // let linkHls = null
       // if (embed) {
       //   try {
