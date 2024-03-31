@@ -1,5 +1,6 @@
 import { Controller, Get, Query, Render, Res } from '@nestjs/common';
 import { ShareService } from './share.service';
+import { ReadStream } from 'fs';
 
 @Controller('')
 export class ShareController {
@@ -22,5 +23,16 @@ export class ShareController {
   @Render('telegram-iframe.hbs')
   player(@Query('url') url: string, @Query('nextUrl') nextUrl: string,) {
     return this.shareService.player(url, nextUrl)
+  }
+
+  @Get('share/player/next-episode')
+  nextEpisode(
+    @Query('serverName') serverName: string,
+    @Query('slugMovie') slugMovie: string,
+    @Query('slugEpisode') slugEpisode: string,
+    @Query('chatId') chatId: number,
+    @Query('messageId') messageId: number
+  ) {
+    return this.shareService.nextEpisode(serverName, slugMovie, slugEpisode, chatId, messageId)
   }
 }

@@ -26,7 +26,7 @@ export class Message {
     type: 'varchar',
     nullable: true
   })
-  chatId: string;
+  chatId: number | string;
 
   @Column({
     type: 'json',

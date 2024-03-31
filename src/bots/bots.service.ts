@@ -25,7 +25,7 @@ export class BotsService implements OnModuleInit {
 
   private userName: string | null = null
 
-  private bot: TelegramBot = null
+  public bot: TelegramBot = null
 
   private readonly appUrl: string = ""
 
@@ -168,7 +168,7 @@ export class BotsService implements OnModuleInit {
             console.log(match, match.slice(1).join(' '));
             const cat = _.first(categories.filter(el => el.slug == match[0]))
             const { results } = await this.moviesService.discoverMovie(page, match.slice(1).join(' '), match.slice(1).join(' ') ? cat.id : cat.slug)
-            if (results.length == 0) {
+            if (results.length == 0 && page == 1) {
               return this.bot.answerInlineQuery(query.id, [
                 renderArticle()
               ])
@@ -185,7 +185,7 @@ export class BotsService implements OnModuleInit {
           const { results } = await this.moviesService.discoverMovie(page, query?.query.trim())
           console.log(results);
 
-          if (results.length == 0) {
+          if (results.length == 0 && page == 1) {
             return this.bot.answerInlineQuery(query.id, [
               renderArticle()
             ])
@@ -587,7 +587,8 @@ export class BotsService implements OnModuleInit {
 
       // const serverSource = _.first(_.get(detailMovie, 'episodes', []).filter(el => el.server_name == serverName))
       const embed = _.get(episode, 'embed')
-      const embedNext = _.get(episodeNext, 'embed')
+      const nextSlug = _.get(episodeNext, 'slug')
+      const nextEmbed = _.get(episodeNext, 'embed')
       // let linkHls = null
       // if (embed) {
       //   try {
@@ -598,13 +599,22 @@ export class BotsService implements OnModuleInit {
       //     console.log('ERROR: ' + error.message);
       //   }
       // }
-      console.log({ watchNowUrl: `${this.appUrl}/share/player?url=${embed}&nextUrl=${embedNext}` });
+      const params = new URLSearchParams({
+        serverName,
+        movieSlug: slug,
+        nextSlug: nextSlug,
+        nextEmbed: nextEmbed,
+        chatId,
+        messageId
+      }).toString();
+
+      console.log({ watchNowUrl: `${this.appUrl}/share/player?url=${embed}&${params}` });
       return {
         inline_keyboard: [
           embed ? [
             renderButtonWebapp(
               '↗️ Xem ngay (' + (_.lowerCase(episode.name) == 'full' ? episode.name : `Tập ${episode.name}`) + ')',
-              `${this.appUrl}/share/player?url=${embed}&nextUrl=${embedNext}`
+              `${this.appUrl}/share/player?url=${embed}&${params}`
             ),
           ] : [],
           episodes.length > 1 ? [
@@ -651,11 +661,7 @@ export class BotsService implements OnModuleInit {
       });
 
       messageBefores.forEach((item) => {
-        try {
-          this.bot.deleteMessage(item.chatId, item.messageId)
-        } catch (error) {
-          console.log('Error: ' + error.message);
-        }
+        this.bot.deleteMessage(item.chatId, item.messageId).catch(error => console.log('Error: ' + error.message))
       })
     }
 
@@ -669,5 +675,22 @@ export class BotsService implements OnModuleInit {
     message.reply_markup = message.reply_markup
     message.deletedAt = null
     await this.messageRepository.save(message)
+  }
+
+  async saveNextEpisode(chatId: number, messageId: number, slugEpisode) {
+    console.log(chatId, messageId);
+    const message = await this.messageRepository.findOne({
+      where: {
+        messageId: messageId,
+        chatId: chatId
+      }
+    })
+
+    const messageData = message?.data ? message.data : {}
+    messageData['episode'] = slugEpisode
+    message.data = messageData
+
+    console.log(message.data);
+    return await this.messageRepository.save(message)
   }
 }

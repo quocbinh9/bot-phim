@@ -4,6 +4,8 @@ import * as _ from 'lodash'
 import { ReadStream } from 'fs';
 import axios, { AxiosRequestConfig } from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { MoviesService } from 'src/movies/movies.service';
+import { BotsService } from 'src/bots/bots.service';
 
 @Injectable()
 export class ShareService {
@@ -11,6 +13,8 @@ export class ShareService {
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly moviesService: MoviesService,
+    private readonly botsService: BotsService
   ) {
     this.appUrl = configService.get<string>('app.url')
   }
@@ -90,6 +94,45 @@ export class ShareService {
       return response.data
     } catch (error) {
       throw new Error(error.message)
+    }
+  }
+
+  async nextEpisode(
+    serverName: string,
+    slugMovie: string,
+    slugEpisode: string,
+    chatId: number,
+    messageId: number
+  ) {
+    const detailMovie = await this.moviesService.detailMovie(slugMovie)
+    if (!detailMovie) return
+    console.log({ serverName, slugMovie, slugEpisode, detailMovie });
+    const serverNameIndex = _.get(detailMovie, 'episodes', []).findIndex(el => el.server_name == serverName)
+    console.log({ serverNameIndex });
+    const episodes = _.get(detailMovie, `episodes.${serverNameIndex}.items`, [])
+
+    let episodeIndex = episodes.findIndex(el => el.slug == slugEpisode)
+    const episode = episodes[episodeIndex]
+    console.log({ episode });
+
+    const episodeNext = episodes[episodeIndex + 1]
+    console.log({ episodeNext });
+
+    const message = await this.botsService.saveNextEpisode(chatId, messageId, episodeNext.slug)
+    console.log(message);
+
+    try {
+      await this.botsService.bot.editMessageReplyMarkup(await this.botsService.detailMovieReplyMarkup(slugMovie, detailMovie, chatId, messageId), {
+        message_id: messageId,
+        chat_id: chatId
+      })
+    } catch (error) {
+      console.log('Error: ' + error.message);
+
+    }
+
+    return {
+      serverName, slugMovie, slugEpisode: episodeNext.slug, embedEpisode: episode.embed
     }
   }
 }

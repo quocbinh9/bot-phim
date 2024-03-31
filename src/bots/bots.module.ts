@@ -16,5 +16,6 @@ import { MoviesModule } from 'src/movies/movies.module';
     ]),
     forwardRef(() => MoviesModule)
   ],
+  exports: [BotsService]
 })
 export class BotsModule { }
